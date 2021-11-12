@@ -1,0 +1,29 @@
+version: '3.7'
+
+services:
+  web:
+    container_name: web-dev
+    restart: always
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+
+    ports:
+      - 8000:8000
+    env_file:
+      - ./.env
+    depends_on:
+      - postgres
+  postgres:
+    container_name: postgres-db
+    restart: always
+    image: postgres:10.0
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=Actimel13
+      - POSTGRES_DB=portal_db
+
+volumes:
+  postgres_data:
+

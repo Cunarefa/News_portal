@@ -1,7 +1,6 @@
 from django.contrib.auth.models import update_last_login
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -116,38 +115,20 @@ class PostViewSet(viewsets.ModelViewSet):
         serializer.save(author=self.request.user)
 
 
-# class PostBulkUpdate(viewsets.ModelViewSet):
-#     queryset = Post.objects.all()
-#     serializer_class = PostBulkUpdateSerializer
-#     permission_classes = [PostPermissions]
-#     authentication_classes = [JWTAuthentication]
-#     lookup_field = 'multiple'
-#
-#     def get_serializer(self, *args, **kwargs):
-#         serializer_class = self.get_serializer_class()
-#         kwargs.setdefault('context', self.get_serializer_context())
-#         if isinstance(self.request.data, list):
-#             return serializer_class(many=True, *args, **kwargs)
-#         else:
-#             return serializer_class(*args, **kwargs)
-#
-#     # @action(methods=['patch'], detail=True, url_path='multiple')
-#     def multiple_update(self, request, *args, **kwargs):
-#         self.get_object()
-#         partial = kwargs.pop('partial', True)
-#         instances = []
-#         for item in request.data:
-#             instance = get_object_or_404(Post, id=int(item['id']))
-#             serializer = super().get_serializer(instance, data=item, partial=partial)
-#             serializer.is_valid(raise_exception=True)
-#             serializer.save()
-#             instances.append(serializer.data)
-#         return Response(instances)
+class PostBulkUpdate(viewsets.ModelViewSet):
+    queryset = Post.objects.all()
+    serializer_class = PostBulkUpdateSerializer
+    permission_classes = [PostPermissions]
+    authentication_classes = [JWTAuthentication]
 
-
-
-
-
-
-
+    def update(self, request, *args, **kwargs):
+        self.get_object()
+        instances = [item for item in request.data]
+        for item in request.data:
+            post = get_object_or_404(Post, id=item["id"])
+            serializer = self.get_serializer(post, data=item)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            instances.append(serializer.data)
+        return Response(instances, status.HTTP_200_OK)
 
