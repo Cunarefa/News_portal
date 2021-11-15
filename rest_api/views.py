@@ -1,9 +1,12 @@
 from django.contrib.auth.models import update_last_login
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework.response import Response
+from rest_framework.routers import DefaultRouter
 from rest_framework.views import APIView
+from rest_framework_bulk import ListBulkCreateUpdateDestroyAPIView, BulkModelViewSet
+from rest_framework_bulk.routes import BulkRouter
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -44,13 +47,13 @@ class UserViewset(viewsets.ModelViewSet):
             queryset = User.objects.all()
 
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status.HTTP_200_OK)
 
-    def delete(self, request, *args, **kwargs):
+    def destroy(self, request, *args, **kwargs):
         user = self.get_object()
         user.is_active = False
         user.save()
-        return Response('User deleted', status.HTTP_200_OK)
+        return Response({'status': 'User deleted'}, status.HTTP_204_NO_CONTENT)
 
 
 class CompanyViewSet(viewsets.ModelViewSet):
@@ -66,12 +69,12 @@ class CompanyViewSet(viewsets.ModelViewSet):
             selection = self.request.query_params.get('selection')
             if selection:
                 serializer = SelectionCompanySerializer(self.queryset, many=True)
-                return Response(serializer.data)
+                return Response(serializer.data, status.HTTP_200_OK)
             else:
                 queryset = self.get_queryset()
 
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status.HTTP_200_OK)
 
     def perform_create(self, serializer):
         serializer.save()
@@ -94,7 +97,7 @@ class PostViewSet(viewsets.ModelViewSet):
             if title:
                 queryset = queryset.filter(title=title)
             if text:
-                queryset = queryset.filter(text=text)
+                queryset = queryset.filter(text__contains=text)
             if company:
                 queryset = queryset.filter(company=company)
             if topic:
@@ -106,26 +109,37 @@ class PostViewSet(viewsets.ModelViewSet):
             else:
                 queryset = Post.objects.filter(author=request.user.id)
                 serializer = PostSerializer(queryset, many=True)
-                return Response(serializer.data)
+                return Response(serializer.data, status.HTTP_200_OK)
 
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status.HTTP_200_OK)
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
+    def destroy(self, request, *args, **kwargs):
+        self.get_object()
+        try:
+            post = Post.objects.get(id=kwargs["pk"])
+            post.delete()
+            return Response({'status': 'Post deleted'}, status.HTTP_204_NO_CONTENT)
+        except ValueError:
+            return Response({'status': 'No post with such id.'}, status.HTTP_404_NOT_FOUND)
 
-class PostBulkUpdate(viewsets.ModelViewSet):
+
+class PostBulkUpdate(BulkModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostBulkUpdateSerializer
     permission_classes = [PostPermissions]
     authentication_classes = [JWTAuthentication]
 
-    def update(self, request, *args, **kwargs):
-        self.get_object()
-        instances = [item for item in request.data]
+    def bulk_update(self, request, *args, **kwargs):
+        obj = self.get_object()
+        instances = []
         for item in request.data:
             post = get_object_or_404(Post, id=item["id"])
+            if obj != post:
+                raise PermissionDenied("You can not modify other users posts.")
             serializer = self.get_serializer(post, data=item)
             serializer.is_valid(raise_exception=True)
             serializer.save()

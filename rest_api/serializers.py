@@ -4,6 +4,12 @@ from rest_framework.serializers import ListSerializer
 from rest_framework.validators import UniqueValidator
 from portal_app.models import User, Post, Company
 
+from rest_framework_bulk import (
+    BulkListSerializer,
+    BulkSerializerMixin,
+    ListBulkCreateUpdateDestroyAPIView,
+)
+
 
 class UserSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
@@ -55,13 +61,14 @@ class PostSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class PostBulkUpdateSerializer(serializers.ModelSerializer):
+class PostBulkUpdateSerializer(BulkSerializerMixin, serializers.ModelSerializer):
     author = serializers.ReadOnlyField(source='author.id')
 
     class Meta:
         model = Post
         fields = '__all__'
-        list_serializer_class = ListSerializer
+        # list_serializer_class = ListSerializer
+        list_serializer_class = BulkListSerializer
 
 
 class UserNestedPostsSerializer(serializers.ModelSerializer):
