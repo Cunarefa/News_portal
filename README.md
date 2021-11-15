@@ -82,13 +82,13 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
-For populating database with 10 companies, 200 users and 30 posts for each users:
+To populate DB with 10 companies, 200 users and 30 posts for each user:
 ```
 python manage.py makemigrations
 python manage.py migrate
 python manage.py makemigrations --empty portal_app
 
-copy and insert into empty migration code from data-migration.txt
+- copy and insert the code from data-migration.txt into empty migration file
 
 python manage.py migrate
 ```
