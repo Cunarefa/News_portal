@@ -78,7 +78,6 @@ docker-compose up --build
 2. Run migrations
 
 ```
-python manage.py makemigrations
 python manage.py migrate
 ```
 
