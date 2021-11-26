@@ -72,7 +72,8 @@ class CompanyViewSet(viewsets.ModelViewSet):
         else:
             selection = self.request.query_params.get('selection')
             if selection:
-                serializer = SelectionCompanySerializer(self.queryset, many=True)
+                queryset = Company.objects.prefetch_related('users', 'users__posts')
+                serializer = SelectionCompanySerializer(queryset, many=True)
                 return Response(serializer.data, status.HTTP_200_OK)
             else:
                 queryset = self.get_queryset()
@@ -134,15 +135,13 @@ class PostViewSet(viewsets.ModelViewSet):
 class PostBulkUpdate(BulkModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostBulkUpdateSerializer
-    permission_classes = [PostPermissions]
     authentication_classes = [JWTAuthentication]
 
     def bulk_update(self, request, *args, **kwargs):
-        obj = self.get_object()
         instances = []
         for item in request.data:
             post = get_object_or_404(Post, id=item["id"])
-            if obj != post:
+            if request.user != post.author and not request.user.is_staff:
                 raise PermissionDenied("You can not modify other users posts.")
             serializer = self.get_serializer(post, data=item)
             serializer.is_valid(raise_exception=True)
