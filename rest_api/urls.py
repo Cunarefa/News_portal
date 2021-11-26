@@ -7,7 +7,6 @@ from .views import LoginView, UserViewset, CompanyViewSet, PostViewSet, PostBulk
 router = DefaultRouter()
 bulk_router = BulkRouter()
 
-
 router.register('users', UserViewset, basename='users')
 router.register('companies', CompanyViewSet, basename='companies')
 router.register('posts', PostViewSet, basename='posts')

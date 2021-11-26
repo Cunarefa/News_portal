@@ -1,14 +1,18 @@
 from django.core.validators import URLValidator
 from rest_framework import serializers
-from rest_framework.serializers import ListSerializer
 from rest_framework.validators import UniqueValidator
 from portal_app.models import User, Post, Company
 
 from rest_framework_bulk import (
     BulkListSerializer,
     BulkSerializerMixin,
-    ListBulkCreateUpdateDestroyAPIView,
 )
+
+
+class LoginSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('email', 'password',)
 
 
 class UserSerializer(serializers.ModelSerializer):

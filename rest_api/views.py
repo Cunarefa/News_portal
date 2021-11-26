@@ -1,22 +1,26 @@
 from django.contrib.auth.models import update_last_login
 from django.shortcuts import get_object_or_404
+from django.utils.decorators import method_decorator
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status, viewsets
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework.response import Response
-from rest_framework.routers import DefaultRouter
 from rest_framework.views import APIView
-from rest_framework_bulk import ListBulkCreateUpdateDestroyAPIView, BulkModelViewSet
-from rest_framework_bulk.routes import BulkRouter
+from rest_framework_bulk import BulkModelViewSet
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
-
 from portal_app.models import User, Post, Company
 from rest_api.permissions import IsUserOrIsAdminOrReadSelfOnly, CompanyPermissions, PostPermissions
 from rest_api.serializers import UserSerializer, PostNestedUserSerializer, CompanySerializer, \
-    SelectionCompanySerializer, PostSerializer, PostBulkUpdateSerializer
+    SelectionCompanySerializer, PostSerializer, PostBulkUpdateSerializer, LoginSerializer
+
+token_param_config = openapi.Parameter('access_token', in_=openapi.IN_HEADER, type=openapi.TYPE_STRING)
 
 
 class LoginView(APIView):
+
+    @swagger_auto_schema(request_body=LoginSerializer)
     def post(self, request):
         email = request.data['email']
         password = request.data['password']
@@ -53,7 +57,7 @@ class UserViewset(viewsets.ModelViewSet):
         user = self.get_object()
         user.is_active = False
         user.save()
-        return Response({'status': 'User deleted'}, status.HTTP_204_NO_CONTENT)
+        return Response(status.HTTP_204_NO_CONTENT)
 
 
 class CompanyViewSet(viewsets.ModelViewSet):
@@ -145,4 +149,3 @@ class PostBulkUpdate(BulkModelViewSet):
             serializer.save()
             instances.append(serializer.data)
         return Response(instances, status.HTTP_200_OK)
-
