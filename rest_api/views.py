@@ -1,6 +1,5 @@
 from django.contrib.auth.models import update_last_login
 from django.shortcuts import get_object_or_404
-from django.utils.decorators import method_decorator
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status, viewsets
@@ -14,8 +13,6 @@ from portal_app.models import User, Post, Company
 from rest_api.permissions import IsUserOrIsAdminOrReadSelfOnly, CompanyPermissions, PostPermissions
 from rest_api.serializers import UserSerializer, PostNestedUserSerializer, CompanySerializer, \
     SelectionCompanySerializer, PostSerializer, PostBulkUpdateSerializer, LoginSerializer
-
-token_param_config = openapi.Parameter('access_token', in_=openapi.IN_HEADER, type=openapi.TYPE_STRING)
 
 
 class LoginView(APIView):
@@ -132,19 +129,23 @@ class PostViewSet(viewsets.ModelViewSet):
             return Response({'status': 'No post with such id.'}, status.HTTP_404_NOT_FOUND)
 
 
-class PostBulkUpdate(BulkModelViewSet):
+class PostBulkUpdate(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostBulkUpdateSerializer
     authentication_classes = [JWTAuthentication]
 
     def bulk_update(self, request, *args, **kwargs):
         instances = []
+        items = []
         for item in request.data:
             post = get_object_or_404(Post, id=item["id"])
             if request.user != post.author and not request.user.is_staff:
                 raise PermissionDenied("You can not modify other users posts.")
-            serializer = self.get_serializer(post, data=item)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            instances.append(serializer.data)
-        return Response(instances, status.HTTP_200_OK)
+
+            items.append(item)
+            instances.append(post)
+        serializer = self.get_serializer(instance=instances, data=items, many=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        # instances.append(serializer.data)
+        return Response(serializer.data, status.HTTP_200_OK)

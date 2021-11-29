@@ -1,5 +1,6 @@
 from django.core.validators import URLValidator
 from rest_framework import serializers
+from rest_framework.serializers import ListSerializer
 from rest_framework.validators import UniqueValidator
 from portal_app.models import User, Post, Company
 
@@ -65,14 +66,23 @@ class PostSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class PostBulkUpdateSerializer(BulkSerializerMixin, serializers.ModelSerializer):
+class PostListSerializer(ListSerializer):
+    def update(self, instance, validated_data):
+        res = []
+        post = Post.objects.get(pk=validated_data['id'])
+        post = post(**validated_data)
+        res.append(post)
+        return res
+
+
+class PostBulkUpdateSerializer(serializers.ModelSerializer):
     author = serializers.ReadOnlyField(source='author.id')
 
     class Meta:
         model = Post
         fields = '__all__'
-        # list_serializer_class = ListSerializer
-        list_serializer_class = BulkListSerializer
+        list_serializer_class = PostListSerializer
+        # list_serializer_class = BulkListSerializer
 
 
 class UserNestedPostsSerializer(serializers.ModelSerializer):
