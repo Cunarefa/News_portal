@@ -154,6 +154,7 @@ class PostBulkUpdate(ModelViewSet):
         queryset = Post.objects.filter(id__in=[data['id'] for data in request.data])
         serializer = self.get_serializer(queryset, data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
         return Response(serializer.data)
 
 
