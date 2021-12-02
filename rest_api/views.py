@@ -1,18 +1,28 @@
 from django.contrib.auth.models import update_last_login
-from django.shortcuts import get_object_or_404
+from django.core.mail import send_mail
+from django.http import HttpResponse
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
-from rest_framework_bulk import BulkModelViewSet
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from newsPortal import settings
 from portal_app.models import User, Post, Company
 from rest_api.permissions import IsUserOrIsAdminOrReadSelfOnly, CompanyPermissions, PostPermissions
 from rest_api.serializers import UserSerializer, PostNestedUserSerializer, CompanySerializer, \
-    SelectionCompanySerializer, PostSerializer, PostBulkUpdateSerializer, LoginSerializer, PostListUpdate
+    SelectionCompanySerializer, PostSerializer, PostBulkUpdateSerializer, LoginSerializer
+from .tasks import send_email_task
+
+
+# def index(request):
+#     # send_mail(subject='Celery', message='Hello from Django', from_email=settings.EMAIL_HOST_USER
+#     #           , recipient_list=['cunarefa@rambler.ru'])
+#     no = send_email_task.delay('cunarefa@rambler.ru')
+#     return HttpResponse(f'<h1>{no}</h1>')
 
 
 class LoginView(APIView):
@@ -55,6 +65,13 @@ class UserViewset(ModelViewSet):
         user.is_active = False
         user.save()
         return Response(status.HTTP_204_NO_CONTENT)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        send_email_task.delay(serializer.data['email'])
+        return Response(serializer.data, status.HTTP_201_CREATED)
 
 
 class CompanyViewSet(ModelViewSet):
@@ -123,10 +140,43 @@ class PostViewSet(ModelViewSet):
         self.get_object()
         try:
             post = Post.objects.get(id=kwargs["pk"])
-            post.delete()
+            post.is_deleted = True
+            post.save()
             return Response(status.HTTP_204_NO_CONTENT)
         except ValueError:
             return Response({'status': 'No post with such id.'}, status.HTTP_404_NOT_FOUND)
+
+
+class PostBulkUpdate(ModelViewSet):
+    queryset = Post.objects.all()
+    serializer_class = PostBulkUpdateSerializer
+    authentication_classes = [JWTAuthentication]
+
+    def update(self, request, *args, **kwargs):
+        queryset = Post.objects.filter(id__in=[data['id'] for data in request.data])
+        serializer = self.get_serializer(queryset, data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
+
+    # def bulk_update(self, request, *args, **kwargs):
+    #     queryset = Post.objects.filter(id__in=[data['id'] for data in request.data])
+    #     serializer = self.get_serializer(queryset, data=request.data, many=True)
+    #     serializer.is_valid(raise_exception=True)
+    #     self.perform_bulk_update(serializer)
+    #     return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # instances = []
+        # for item in request.data:
+        #     post = get_object_or_404(Post, id=item["id"])
+        #     if request.user != post.author and not request.user.is_staff:
+        #         raise PermissionDenied("You can not modify other users posts.")
+        #
+        #     serializer = self.get_serializer(instance=post, data=item)
+        #     serializer.is_valid(raise_exception=True)
+        #     serializer.save()
+        #     instances.append(serializer.data)
+        # return Response(instances, status.HTTP_200_OK)
 
 
 # class PostBulkUpdate(BulkModelViewSet):
@@ -143,37 +193,3 @@ class PostViewSet(ModelViewSet):
 #         # serializer.bulk_update()
 #         # serializer.save()
 #         return Response(serializer.data)
-
-
-class PostBulkUpdate(ModelViewSet):
-    queryset = Post.objects.all()
-    serializer_class = PostBulkUpdateSerializer
-    authentication_classes = [JWTAuthentication]
-
-    def update(self, request, *args, **kwargs):
-        queryset = Post.objects.filter(id__in=[data['id'] for data in request.data])
-        serializer = self.get_serializer(queryset, data=request.data, many=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)
-
-
-    # def bulk_update(self, request, *args, **kwargs):
-    #     queryset = Post.objects.filter(id__in=[data['id'] for data in request.data])
-    #     serializer = self.get_serializer(queryset, data=request.data, many=True)
-    #     serializer.is_valid(raise_exception=True)
-    #     self.perform_bulk_update(serializer)
-    #     return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-        # instances = []
-        # for item in request.data:
-        #     post = get_object_or_404(Post, id=item["id"])
-        #     if request.user != post.author and not request.user.is_staff:
-        #         raise PermissionDenied("You can not modify other users posts.")
-        #
-        #     serializer = self.get_serializer(instance=post, data=item)
-        #     serializer.is_valid(raise_exception=True)
-        #     serializer.save()
-        #     instances.append(serializer.data)
-        # return Response(instances, status.HTTP_200_OK)

@@ -2,6 +2,8 @@ from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin, AbstractUser
 from django.db import models
 
+from portal_app.managers import PostManager
+
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password, user_type=None, **extra_fields):
@@ -75,9 +77,15 @@ class Post(models.Model):
     )
     topic = models.CharField(choices=TOPIC_TYPES, max_length=6)
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')
+    is_deleted = models.BooleanField(default=False)
+    objects = PostManager()
+    all_objects = models.Manager()
 
     def __str__(self):
         return self.title
+
+
+
 
 
 

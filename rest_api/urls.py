@@ -15,6 +15,7 @@ bulk_router.register('posts/multiple', PostBulkUpdate, basename='bulk_posts')
 
 urlpatterns = [
     path('login', LoginView.as_view(), name='login'),
+    # path('mail', index)
 ]
 
 urlpatterns += bulk_router.urls
