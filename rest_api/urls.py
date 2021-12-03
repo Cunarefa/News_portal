@@ -2,7 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from rest_framework_bulk.routes import BulkRouter
 
-from .views import LoginView, UserViewset, CompanyViewSet, PostViewSet, PostBulkUpdate
+from .views import LoginView, UserViewset, CompanyViewSet, PostViewSet, PostBulkUpdate, ActivateAccount
 
 router = DefaultRouter()
 bulk_router = BulkRouter()
@@ -15,7 +15,7 @@ bulk_router.register('posts/multiple', PostBulkUpdate, basename='bulk_posts')
 
 urlpatterns = [
     path('login', LoginView.as_view(), name='login'),
-    # path('mail', index)
+    path('activate/<uidb64>/', ActivateAccount.as_view(), name='activate')
 ]
 
 urlpatterns += bulk_router.urls

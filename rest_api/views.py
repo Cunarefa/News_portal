@@ -1,6 +1,12 @@
 from django.contrib.auth.models import update_last_login
+from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import send_mail
 from django.http import HttpResponse
+from django.shortcuts import redirect
+from django.template.loader import render_to_string
+from django.utils.encoding import force_bytes, force_text
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.views.generic.base import View
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed
@@ -16,13 +22,6 @@ from rest_api.permissions import IsUserOrIsAdminOrReadSelfOnly, CompanyPermissio
 from rest_api.serializers import UserSerializer, PostNestedUserSerializer, CompanySerializer, \
     SelectionCompanySerializer, PostSerializer, PostBulkUpdateSerializer, LoginSerializer
 from .tasks import send_email_task
-
-
-# def index(request):
-#     # send_mail(subject='Celery', message='Hello from Django', from_email=settings.EMAIL_HOST_USER
-#     #           , recipient_list=['cunarefa@rambler.ru'])
-#     no = send_email_task.delay('cunarefa@rambler.ru')
-#     return HttpResponse(f'<h1>{no}</h1>')
 
 
 class LoginView(APIView):
@@ -45,6 +44,22 @@ class LoginView(APIView):
         return Response({'id': user.id, 'user': user.email, 'access': str(token.access_token), 'refresh': str(token)})
 
 
+class ActivateAccount(View):
+    def get(self, request, uidb64, *args, **kwargs):
+        try:
+            uid = force_text(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except(TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+
+        if user is not None:
+            user.is_active = True
+            user.save()
+            return redirect('login')
+        else:
+            return HttpResponse('Activation link is invalid!')
+
+
 class UserViewset(ModelViewSet):
     queryset = User.objects.filter(is_active=True)
     serializer_class = UserSerializer
@@ -61,17 +76,31 @@ class UserViewset(ModelViewSet):
         return Response(serializer.data, status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
-        user = self.get_object()
-        user.is_active = False
-        user.save()
+        user = User.objects.get(id=kwargs["pk"])
+        # user = self.get_object()
+        # user.is_active = False
+        user.delete()
         return Response(status.HTTP_204_NO_CONTENT)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        send_email_task.delay(serializer.data['email'])
-        return Response(serializer.data, status.HTTP_201_CREATED)
+        self.create_email_content(request, serializer)
+        return Response(serializer.data, status.HTTP_200_OK)
+
+    def create_email_content(self, request, serializer):
+        user = User.objects.get(id=serializer.data['id'])
+        current_site = get_current_site(request)
+        subject = 'Activate your account.'
+        message = render_to_string('acc_activate_email.html', {
+            'user': user,
+            'domain': current_site.domain,
+            'uid': urlsafe_base64_encode(force_bytes(user.pk)),
+        })
+        from_email = settings.EMAIL_HOST_USER
+        recipient_list = serializer.data['email']
+        send_email_task.delay(subject, message, from_email, recipient_list)
 
 
 class CompanyViewSet(ModelViewSet):
@@ -166,18 +195,17 @@ class PostBulkUpdate(ModelViewSet):
     #     self.perform_bulk_update(serializer)
     #     return Response(serializer.data, status=status.HTTP_200_OK)
 
-        # instances = []
-        # for item in request.data:
-        #     post = get_object_or_404(Post, id=item["id"])
-        #     if request.user != post.author and not request.user.is_staff:
-        #         raise PermissionDenied("You can not modify other users posts.")
-        #
-        #     serializer = self.get_serializer(instance=post, data=item)
-        #     serializer.is_valid(raise_exception=True)
-        #     serializer.save()
-        #     instances.append(serializer.data)
-        # return Response(instances, status.HTTP_200_OK)
-
+    # instances = []
+    # for item in request.data:
+    #     post = get_object_or_404(Post, id=item["id"])
+    #     if request.user != post.author and not request.user.is_staff:
+    #         raise PermissionDenied("You can not modify other users posts.")
+    #
+    #     serializer = self.get_serializer(instance=post, data=item)
+    #     serializer.is_valid(raise_exception=True)
+    #     serializer.save()
+    #     instances.append(serializer.data)
+    # return Response(instances, status.HTTP_200_OK)
 
 # class PostBulkUpdate(BulkModelViewSet):
 #     queryset = Post.objects.all()

@@ -1,16 +1,16 @@
-from celery import shared_task
-from django.core.mail import send_mail
+from smtplib import SMTPException
 
-from newsPortal import settings
+from celery import shared_task
+from django.core.mail import EmailMessage
+from rest_framework import status
+from rest_framework.response import Response
 
 
 @shared_task
-def send_email_task(email):
-    message = 'To confirm your email follow the link bellow.'
-    subject = 'Account activation.'
-    send_mail(subject=subject,
-              message=message,
-              from_email=settings.EMAIL_HOST_USER,
-              recipient_list=[email]
-              )
-    return 'Email has ben sent!'
+def send_email_task(subject, message, from_email, recipient_list):
+    try:
+        email = EmailMessage(subject, message, from_email, [recipient_list])
+        email.send()
+        return status.HTTP_200_OK
+    except SMTPException as err:
+        return Response(err, status.HTTP_400_BAD_REQUEST)
