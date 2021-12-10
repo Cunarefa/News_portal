@@ -1,22 +1,30 @@
-import inspect
-
 from django.core.validators import URLValidator
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.serializers import ListSerializer
 from rest_framework.validators import UniqueValidator
 from portal_app.models import User, Post, Company
-
-from rest_framework_bulk import (
-    BulkListSerializer,
-    BulkSerializerMixin,
-)
 
 
 class LoginSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('email', 'password',)
+
+
+class PasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(required=True, max_length=128)
+
+    def validate(self, data):
+        user = User.objects.filter(email=data.get('email')).first()
+
+        if not user or not user.is_active:
+            raise AuthenticationFailed('User not found!')
+
+        user.set_password(data['password'])
+        user.save()
+        return user
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -38,6 +46,12 @@ class UserSerializer(serializers.ModelSerializer):
         user.is_active = False
         user.save()
         return user
+
+    def update(self, instance, validated_data):
+        if validated_data.get('password'):
+            instance.set_password(validated_data['password'])
+            instance.save()
+        return instance
 
 
 class UserPostSerializer(serializers.ModelSerializer):

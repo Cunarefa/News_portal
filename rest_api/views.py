@@ -9,7 +9,9 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.generic.base import View
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -20,14 +22,21 @@ from newsPortal import settings
 from portal_app.models import User, Post, Company
 from rest_api.permissions import IsUserOrIsAdminOrReadSelfOnly, CompanyPermissions, PostPermissions
 from rest_api.serializers import UserSerializer, PostNestedUserSerializer, CompanySerializer, \
-    SelectionCompanySerializer, PostSerializer, PostBulkUpdateSerializer, LoginSerializer
+    SelectionCompanySerializer, PostSerializer, PostBulkUpdateSerializer, LoginSerializer, PasswordResetSerializer
 from .tasks import send_email_task
 
 
 class LoginView(APIView):
 
+    def get(self, request):
+        content = {
+            'user': str(request.user),
+            'auth': str(request.auth),
+        }
+        return Response(content, status.HTTP_200_OK)
+
     @swagger_auto_schema(request_body=LoginSerializer)
-    def post(self, request):
+    def post(self, request, *args, **kwargs):
         email = request.data['email']
         password = request.data['password']
         user = User.objects.filter(email=email).first()
@@ -42,6 +51,16 @@ class LoginView(APIView):
         update_last_login(None, user)
 
         return Response({'id': user.id, 'user': user.email, 'access': str(token.access_token), 'refresh': str(token)})
+
+
+class PasswordResetView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = PasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return redirect('login')
+        # return Response(serializer.data, status.HTTP_205_RESET_CONTENT)
 
 
 class ActivateAccount(View):
@@ -87,7 +106,7 @@ class UserViewset(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         self.create_email_content(request, serializer)
-        return Response(serializer.data, status.HTTP_200_OK)
+        return Response(serializer.data, status.HTTP_201_CREATED)
 
     def create_email_content(self, request, serializer):
         user = User.objects.get(id=serializer.data['id'])
@@ -101,6 +120,16 @@ class UserViewset(ModelViewSet):
         from_email = settings.EMAIL_HOST_USER
         recipient_list = serializer.data['email']
         send_email_task.delay(subject, message, from_email, recipient_list)
+
+    @action(methods=['patch'], detail=True, url_path='password-reset', url_name='password_reset')
+    def password_reset(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', True)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status.HTTP_205_RESET_CONTENT)
+        # return redirect('login')
 
 
 class CompanyViewSet(ModelViewSet):
