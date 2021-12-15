@@ -51,8 +51,9 @@ INSTALLED_APPS = [
     'silk',
 
     # applications
-    'portal_app.apps.PortalAppConfig',
-    'rest_api.apps.RestApiConfig',
+    'companies',
+    'users',
+    'posts',
 ]
 
 MIDDLEWARE = [
@@ -86,7 +87,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'newsPortal.wsgi.application'
-AUTH_USER_MODEL = 'portal_app.User'
+AUTH_USER_MODEL = 'users.User'
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases

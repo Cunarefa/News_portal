@@ -1,8 +1,8 @@
-from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
-from django.contrib.auth.models import PermissionsMixin, AbstractUser
+from django.contrib.auth.base_user import BaseUserManager
+from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from portal_app.managers import PostManager
+from companies.models import Company
 
 
 class CustomUserManager(BaseUserManager):
@@ -40,7 +40,7 @@ class User(AbstractUser):
         ('Client', 'client'),
     )
     user_type = models.CharField(choices=ROLES, default='Client', max_length=10)
-    company = models.ForeignKey('Company', on_delete=models.SET_NULL, related_name='users', null=True)
+    company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name='users', null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -53,45 +53,3 @@ class User(AbstractUser):
     @property
     def full_name(self):
         return f'{self.first_name} {self.last_name}'
-
-
-class Company(models.Model):
-    name = models.CharField(max_length=255)
-    url = models.URLField(max_length=150, blank=True, null=True)
-    address = models.CharField(max_length=500, blank=True, null=True)
-    date_created = models.DateField()
-    logo = models.ImageField(upload_to='logos/%Y/%m/%d/', blank=True, null=True)
-
-    def __str__(self):
-        return self.name
-
-
-class Post(models.Model):
-    title = models.CharField(max_length=500)
-    text = models.TextField(max_length=1000, blank=True, null=True)
-    TOPIC_TYPES = (
-        ('nature', 'Nature'),
-        ('sport', 'Sport'),
-        ('art', 'Art'),
-        ('travel', 'Travel')
-    )
-    topic = models.CharField(choices=TOPIC_TYPES, max_length=6)
-    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')
-    is_deleted = models.BooleanField(default=False)
-    objects = PostManager()
-    all_objects = models.Manager()
-
-    def __str__(self):
-        return self.title
-
-
-
-
-
-
-
-
-
-
-
-

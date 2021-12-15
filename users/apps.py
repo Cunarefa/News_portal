@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class PortalAppConfig(AppConfig):
+class UsersConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'portal_app'
+    name = 'users'

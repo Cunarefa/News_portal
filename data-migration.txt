@@ -10,9 +10,9 @@ fake = Faker()
 
 
 def create_db_records(apps, schema_editor):
-    User = apps.get_model('portal_app', 'User')
-    Company = apps.get_model('portal_app', 'Company')
-    Post = apps.get_model('portal_app', 'Post')
+    User = apps.get_model('users', 'User')
+    Company = apps.get_model('companies', 'Company')
+    Post = apps.get_model('posts', 'Post')
 
     companies = []
     users = []
@@ -20,7 +20,6 @@ def create_db_records(apps, schema_editor):
 
     for _ in range(1, 11):
         company = Company(name=fake.company(),
-                          # url=f'https://www.{Company.name.value.lower()}.com',
                           date_created=fake.date()
                           )
         name = ''.join(char for char in company.name.lower() if char.isalnum())
@@ -54,9 +53,9 @@ def create_db_records(apps, schema_editor):
 
 
 def reverse_func(apps, schema_editor):
-    User = apps.get_model('portal_app', 'User')
-    Company = apps.get_model('portal_app', 'Company')
-    Post = apps.get_model('portal_app', 'Post')
+    User = apps.get_model('users', 'User')
+    Company = apps.get_model('companies', 'Company')
+    Post = apps.get_model('posts', 'Post')
 
     User.objects.all().delete()
     Company.objects.all().delete()
@@ -65,7 +64,9 @@ def reverse_func(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('portal_app', '0001_initial'),
+        ('users', '0001_initial'),
+        ('companies', '0001_initial'),
+        ('posts', '0001_initial'),
     ]
 
     operations = [
