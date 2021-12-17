@@ -41,6 +41,7 @@ class User(AbstractUser):
     )
     user_type = models.CharField(choices=ROLES, default='Client', max_length=10)
     company = models.ForeignKey(Company, on_delete=models.SET_NULL, related_name='users', null=True)
+    # accept_invite = None
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

@@ -2,8 +2,35 @@ from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.validators import UniqueValidator
 
-from posts.serializers import PostSerializer
+from companies.models import Company
+from companies.serializers import CompanySerializer
 from users.models import User
+
+
+class AdminRegisterSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only=True)
+    company = CompanySerializer(required=True)
+    email = serializers.EmailField(
+        required=True,
+        max_length=255,
+        validators=[UniqueValidator(queryset=User.objects.all())]
+    )
+
+    class Meta:
+        model = User
+        exclude = ('is_staff', 'user_permissions', 'groups', 'avatar', 'date_joined', 'is_superuser', 'last_login')
+
+    def create(self, validated_data):
+        validated_data['user_type'] = 'Admin'
+        validated_data['is_staff'] = True
+        company_data = validated_data.pop('company')
+        user = User(**validated_data)
+        user.set_password(validated_data['password'])
+
+        company = Company.objects.create(**company_data)
+        user.company = company
+        user.save()
+        return user
 
 
 class LoginSerializer(serializers.ModelSerializer):
@@ -50,6 +77,7 @@ class UserSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     email = serializers.CharField(
         required=True,
+        max_length=255,
         validators=[UniqueValidator(queryset=User.objects.all())]
     )
     user_type = serializers.ChoiceField(choices=User.ROLES, default='Client')
@@ -69,10 +97,47 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 
-class UserNestedPostsSerializer(serializers.ModelSerializer):
-    posts = PostSerializer(many=True, read_only=True)
+class InviteUserSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only=True)
+    email = serializers.ListField(child=serializers.CharField(max_length=255))
 
     class Meta:
         model = User
-        fields = ('id', 'posts', 'first_name', 'last_name', 'email')
+        fields = ("id", "email",)
+
+    def create(self, validated_data):
+        users = []
+        emails = validated_data.pop("email")
+        for email in emails:
+            user = User(email=email)
+            user.is_active = False
+            users.append(user)
+
+        User.objects.bulk_create(users)
+        return users
+
+
+class AcceptInviteSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only=True)
+    email = serializers.CharField(
+        required=True,
+        max_length=255,
+        validators=[UniqueValidator(queryset=User.objects.all())]
+    )
+
+    class Meta:
+        model = User
+        exclude = ('is_staff', 'user_permissions', 'groups', 'avatar', 'date_joined', 'is_superuser', 'last_login')
+
+    def update(self, instance, validated_data):
+        pass
+
+
+
+
+
+
+
+
+
 
