@@ -5,6 +5,7 @@ from rest_framework.validators import UniqueValidator
 from companies.models import Company
 from companies.serializers import CompanySerializer
 from users.models import User
+from .tasks import send_invites_task
 
 
 class AdminRegisterSerializer(serializers.ModelSerializer):
@@ -73,6 +74,54 @@ class PasswordResetSerializer(serializers.ModelSerializer):
         return user
 
 
+class InviteUserSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only=True)
+    email = serializers.ListField(child=serializers.CharField(max_length=255))
+
+    class Meta:
+        model = User
+        fields = ("id", "email",)
+
+    def create(self, validated_data):
+        users = []
+        company = Company.objects.filter(id=validated_data['company']).first()
+        emails = validated_data.pop("email")
+        for email in emails:
+            user = User(email=email)
+            user.is_active = False
+            user.company = company
+            users.append(user)
+
+        send_invites_task.delay(emails)
+        User.objects.bulk_create(users)
+        return users
+
+
+class AcceptInviteSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only=True)
+    email = serializers.CharField(
+        required=True,
+        max_length=255,
+        validators=[UniqueValidator(queryset=User.objects.all())]
+    )
+    password = serializers.CharField(max_length=128, required=True)
+
+    class Meta:
+        model = User
+        exclude = ('is_staff', 'user_permissions', 'groups', 'avatar', 'date_joined', 'is_superuser', 'last_login')
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            if attr == 'password':
+                instance.set_password(value)
+            else:
+                setattr(instance, attr, value)
+        instance.is_active = True
+        instance.invite_accepted = True
+        instance.save()
+        return instance
+
+
 class UserSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     email = serializers.CharField(
@@ -95,45 +144,6 @@ class UserSerializer(serializers.ModelSerializer):
         user.is_active = False
         user.save()
         return user
-
-
-class InviteUserSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(read_only=True)
-    email = serializers.ListField(child=serializers.CharField(max_length=255))
-
-    class Meta:
-        model = User
-        fields = ("id", "email",)
-
-    def create(self, validated_data):
-        users = []
-        emails = validated_data.pop("email")
-        for email in emails:
-            user = User(email=email)
-            user.is_active = False
-            users.append(user)
-
-        User.objects.bulk_create(users)
-        return users
-
-
-class AcceptInviteSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(read_only=True)
-    email = serializers.CharField(
-        required=True,
-        max_length=255,
-        validators=[UniqueValidator(queryset=User.objects.all())]
-    )
-
-    class Meta:
-        model = User
-        exclude = ('is_staff', 'user_permissions', 'groups', 'avatar', 'date_joined', 'is_superuser', 'last_login')
-
-    def update(self, instance, validated_data):
-        pass
-
-
-
 
 
 

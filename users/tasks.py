@@ -34,7 +34,7 @@ def send_invites_task(emails_list):
             token = RefreshToken.for_user(user)
             message = render_to_string('invite_email.html', {
                 'user': user,
-                'domain': 'http://127.0.0.1:8000/',
+                'domain': 'http://127.0.0.1:8000',
                 'token': token
             })
 

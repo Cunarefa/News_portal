@@ -2,13 +2,12 @@ from django.contrib.auth.models import update_last_login
 from django.core.exceptions import ValidationError
 
 from django.http import JsonResponse
-from django.utils.encoding import force_text, force_bytes
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.encoding import force_text
+from django.utils.http import urlsafe_base64_decode
 from django.views import View
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
-from rest_framework.decorators import action
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, UpdateAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -18,7 +17,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 import conf
 from users.models import User
-from .tasks import send_invites_task, create_email_content
+from .tasks import create_email_content
 from users.permissions import IsUserOrIsAdminOrReadSelfOnly
 from users.serializers import LoginSerializer, PasswordResetSerializer, UserSerializer, AdminRegisterSerializer, \
     InviteUserSerializer, AcceptInviteSerializer
@@ -43,29 +42,37 @@ class AdminRegistrationView(CreateAPIView):
 
 
 class InviteUsers(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsUserOrIsAdminOrReadSelfOnly]
+
     def post(self, request):
-        emails = request.data["email"]
         serializer = InviteUserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-
-        send_invites_task.delay(emails)
         return Response({"Invites sent to ": serializer.validated_data}, status.HTTP_201_CREATED)
 
 
-class AcceptInvite(APIView):
-    def patch(self, request, *args, **kwargs):
+class AcceptInvite(UpdateAPIView):
+    def get_object(self, **kwargs):
         try:
             token = kwargs['token']
             valid_data = TokenBackend(algorithm='HS256').decode(token, verify=False)
-            user = User.objects.filter(id=valid_data['user_id']).first()
-            request.user = user
-            serializer = AcceptInviteSerializer(instance=user, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(serializer.data, status.HTTP_200_OK)
+            obj = User.objects.filter(id=valid_data['user_id']).first()
+            return obj
         except ValidationError as v:
             print("validation error", v)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        user = self.get_object(**kwargs)
+
+        if not request.data.get('email'):
+            request.data['email'] = user.email
+
+        serializer = AcceptInviteSerializer(user, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status.HTTP_200_OK)
 
 
 class LoginView(APIView):
@@ -170,6 +177,3 @@ class UserViewset(ModelViewSet):
         template = 'acc_activate_email.html'
         create_email_content(request, serializer, subject, template)
         return Response(serializer.data, status.HTTP_201_CREATED)
-
-
-
