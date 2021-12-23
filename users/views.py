@@ -1,3 +1,4 @@
+import jwt
 from django.contrib.auth.models import update_last_login
 from django.core.exceptions import ValidationError
 
@@ -17,10 +18,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 import conf
 from users.models import User
-from .tasks import create_email_content
+# from .tasks import create_email_content
 from users.permissions import IsUserOrIsAdminOrReadSelfOnly
 from users.serializers import LoginSerializer, PasswordResetSerializer, UserSerializer, AdminRegisterSerializer, \
     InviteUserSerializer, AcceptInviteSerializer
+from newsPortal.settings import SECRET_KEY as secret
 
 
 class AdminRegistrationView(CreateAPIView):
@@ -41,12 +43,13 @@ class AdminRegistrationView(CreateAPIView):
         return Response(data, status.HTTP_201_CREATED)
 
 
-class InviteUsers(APIView):
+class InviteUsers(CreateAPIView):
+    serializer_class = InviteUserSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsUserOrIsAdminOrReadSelfOnly]
 
-    def post(self, request):
-        serializer = InviteUserSerializer(data=request.data)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({"Invites sent to ": serializer.validated_data}, status.HTTP_201_CREATED)
@@ -56,7 +59,7 @@ class AcceptInvite(UpdateAPIView):
     def get_object(self, **kwargs):
         try:
             token = kwargs['token']
-            valid_data = TokenBackend(algorithm='HS256').decode(token, verify=False)
+            valid_data = jwt.decode(token, secret, algorithms=['HS256'])
             obj = User.objects.filter(id=valid_data['user_id']).first()
             return obj
         except ValidationError as v:
@@ -96,26 +99,24 @@ class PasswordResetView(APIView):
         serializer = PasswordResetSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        subject = conf.RESET_SUBJECT
-        template = 'reset_password.html'
-        password = serializer.data['password']
-        create_email_content(request, serializer, subject, template, password)
+        # subject = conf.RESET_SUBJECT
+        # template = 'reset_password.html'
+        # password = serializer.data['password']
+        # create_email_content(request, serializer, password)
         data = {
             'message': 'Check your email.'
         }
-        return JsonResponse(data, status=200)
+        return Response(data, status=200)
 
 
 class ConfirmResetPassword(APIView):
     def post(self, request, *args, **kwargs):
-        try:
-            uid = force_text(urlsafe_base64_decode(kwargs['uidb64']))
-            password = force_text(urlsafe_base64_decode(kwargs['password']))
-            user = User.objects.get(pk=uid)
-            user.password = password
-        except(TypeError, ValueError, OverflowError, User.DoesNotExist):
-            user = None
+        token_data = jwt.decode(kwargs['token'], secret, algorithms=['HS256'])
+        uid = token_data['user_id']
+        password = token_data['password']
 
+        user = User.objects.get(pk=uid)
+        user.password = password
         serializer = LoginSerializer(instance=user)
         user.save()
         token = RefreshToken.for_user(user)
@@ -175,5 +176,5 @@ class UserViewset(ModelViewSet):
         serializer.save()
         subject = conf.ACTIVATE_SUBJECT
         template = 'acc_activate_email.html'
-        create_email_content(request, serializer, subject, template)
+        # create_email_content(request, serializer, subject, template)
         return Response(serializer.data, status.HTTP_201_CREATED)
