@@ -131,7 +131,8 @@ class ConfirmResetPassword(APIView):
 class ActivateAccount(View):
     def get(self, request, *args, **kwargs):
         try:
-            uid = force_text(urlsafe_base64_decode(kwargs.get('uidb64')))
+            token_data = jwt.decode(kwargs['token'], secret, algorithms=['HS256'])
+            uid = token_data['user_id']
             user = User.objects.get(pk=uid)
         except(TypeError, ValueError, OverflowError, User.DoesNotExist):
             user = None
@@ -174,7 +175,4 @@ class UserViewset(ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        subject = conf.ACTIVATE_SUBJECT
-        template = 'acc_activate_email.html'
-        # create_email_content(request, serializer, subject, template)
         return Response(serializer.data, status.HTTP_201_CREATED)

@@ -5,7 +5,7 @@ from rest_framework.validators import UniqueValidator
 from companies.models import Company
 from companies.serializers import CompanySerializer
 from users.models import User
-from .tasks import send_invites_task, send_reset_password_email_task
+from .tasks import send_invites_task, create_reset_password_email, create_acc_activation_email
 
 
 class AdminRegisterSerializer(serializers.ModelSerializer):
@@ -72,7 +72,7 @@ class PasswordResetSerializer(serializers.ModelSerializer):
             raise AuthenticationFailed('User not found!')
 
         user.set_password(password1)
-        d = send_reset_password_email_task.delay(email, user.password)
+        create_reset_password_email(email, user.password)
         return user
 
 
@@ -145,11 +145,5 @@ class UserSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.is_active = False
         user.save()
+        create_acc_activation_email(user.email)
         return user
-
-
-
-
-
-
-
