@@ -1,3 +1,4 @@
+import uuid
 from smtplib import SMTPException
 
 import jwt
@@ -5,11 +6,12 @@ from celery import shared_task
 from django.core.mail import EmailMessage, send_mail
 from django.template.loader import render_to_string
 from rest_framework import status
+from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from newsPortal.settings import SECRET_KEY as secret
 
 from newsPortal import settings
-from users.models import User
+from users.models import User, InviteToken
 
 
 def create_acc_activation_email(recipient_email):
@@ -59,12 +61,11 @@ def send_invites_task(emails_list):
         subject = 'Invitation to cooperation.'
         for email in emails_list:
             user = User.objects.filter(email=email).first()
-            payload = {'user_id': user.id}
-            token = jwt.encode(payload, secret, algorithm='HS256')
+            token = InviteToken.objects.create(user=user, value=uuid.uuid4())
             message = render_to_string('invite_email.html', {
                 'user': user,
                 'domain': 'http://127.0.0.1:8000',
-                'token': token
+                'token': token.value
             })
 
             send_mail(subject, message, settings.EMAIL_HOST_USER, [email])

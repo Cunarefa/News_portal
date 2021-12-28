@@ -1,10 +1,12 @@
+from datetime import datetime
+
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.validators import UniqueValidator
 
 from companies.models import Company
 from companies.serializers import CompanySerializer
-from users.models import User
+from users.models import User, InviteToken
 from .tasks import send_invites_task, create_reset_password_email, create_acc_activation_email
 
 
@@ -94,8 +96,8 @@ class InviteUserSerializer(serializers.ModelSerializer):
             user.company = inviter.company
             users.append(user)
 
-        send_invites_task.delay(emails)
         User.objects.bulk_create(users)
+        send_invites_task.delay(emails)
         return users
 
 

@@ -1,6 +1,8 @@
+from datetime import datetime
+
 import jwt
 from django.contrib.auth.models import update_last_login
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 
 from django.http import JsonResponse
 from django.utils.encoding import force_text
@@ -9,6 +11,7 @@ from django.views import View
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.generics import CreateAPIView, UpdateAPIView
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -17,11 +20,12 @@ from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.tokens import RefreshToken
 
 import conf
-from users.models import User
+from users.models import User, InviteToken
 # from .tasks import create_email_content
 from users.permissions import IsUserOrIsAdminOrReadSelfOnly
 from users.serializers import LoginSerializer, PasswordResetSerializer, UserSerializer, AdminRegisterSerializer, \
     InviteUserSerializer, AcceptInviteSerializer
+from rest_framework.authtoken.models import Token
 from newsPortal.settings import SECRET_KEY as secret
 
 
@@ -56,26 +60,38 @@ class InviteUsers(CreateAPIView):
 
 
 class AcceptInvite(UpdateAPIView):
+    serializer_class = AcceptInviteSerializer
+    permission_classes = [AllowAny]
+
     def get_object(self, **kwargs):
         try:
             token = kwargs['token']
-            valid_data = jwt.decode(token, secret, algorithms=['HS256'])
-            obj = User.objects.filter(id=valid_data['user_id']).first()
+            obj = InviteToken.objects.get(value=token).user
             return obj
         except ValidationError as v:
             print("validation error", v)
 
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
-        user = self.get_object(**kwargs)
+        try:
+            user = self.get_object(**kwargs)
 
-        if not request.data.get('email'):
-            request.data['email'] = user.email
+            if not request.data.get('email'):
+                request.data['email'] = user.email
 
-        serializer = AcceptInviteSerializer(user, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status.HTTP_200_OK)
+            serializer = self.get_serializer(user, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            token = InviteToken.objects.get(value=kwargs['token'])
+            token.status = False
+            token.exp_date = datetime.now()
+            token.save()
+            return Response(serializer.data, status.HTTP_200_OK)
+        except ObjectDoesNotExist:
+            return Response(
+                {'message': "InviteToken object does not exist or have expired"}, status.HTTP_404_NOT_FOUND
+            )
 
 
 class LoginView(APIView):
@@ -99,10 +115,6 @@ class PasswordResetView(APIView):
         serializer = PasswordResetSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # subject = conf.RESET_SUBJECT
-        # template = 'reset_password.html'
-        # password = serializer.data['password']
-        # create_email_content(request, serializer, password)
         data = {
             'message': 'Check your email.'
         }

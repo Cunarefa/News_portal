@@ -1,8 +1,12 @@
+import uuid
+from datetime import timedelta, datetime
+
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 from companies.models import Company
+from users.managers import InviteTokenManager
 
 
 class CustomUserManager(BaseUserManager):
@@ -54,3 +58,25 @@ class User(AbstractUser):
     @property
     def full_name(self):
         return f'{self.first_name} {self.last_name}'
+
+
+class InviteToken(models.Model):
+    value = models.UUIDField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    exp_date = models.DateTimeField(default=datetime.now() + timedelta(days=30))  # или тут поставить auto_now=True?
+    status = models.BooleanField(default=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='invite_token')
+    objects = InviteTokenManager()
+    all_objects = models.Manager()
+
+
+
+
+
+
+
+
+
+
+
+
